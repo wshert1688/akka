@@ -83,7 +83,7 @@ object AkkaBuild extends Build {
     base = file("akka-scala-nightly"),
     // remove dependencies that we have to build ourselves (Scala STM, ZeroMQ Scala Bindings)
     aggregate = Seq(actor, testkit, actorTests, dataflow, remote, remoteTests, camel, cluster, slf4j,
-      persistence, mailboxes, kernel, osgi, contrib, samples, multiNodeTestkit)
+      persistence, mailboxes, kernel, osgi, contrib, multiNodeTestkit)
   )
 
   // this detached pseudo-project is used for running the tests against a different Scala version than the one used for compilation
