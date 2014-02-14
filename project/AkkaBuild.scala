@@ -369,8 +369,8 @@ object AkkaBuild extends Build {
     settings = parentSettings ++ ActivatorDist.settings,
     aggregate = Seq(camelSampleJava, camelSampleScala, mainSampleJava, mainSampleScala, 
           remoteSampleJava, remoteSampleScala, clusterSampleJava, clusterSampleScala,
-          fsmSample, persistenceSample,
-          multiNodeSample, helloKernelSample, osgiDiningHakkersSample)
+          fsmSampleScala, persistenceSampleJava, persistenceSampleScala,
+          multiNodeSampleScala, helloKernelSample, osgiDiningHakkersSample)
   )
 
   lazy val camelSampleJava = Project(
@@ -387,9 +387,9 @@ object AkkaBuild extends Build {
     settings = sampleSettings ++ Seq(libraryDependencies ++= Dependencies.camelSample)
   )
 
-  lazy val fsmSample = Project(
-    id = "akka-sample-fsm",
-    base = file("akka-samples/akka-sample-fsm"),
+  lazy val fsmSampleScala = Project(
+    id = "akka-sample-fsm-scala",
+    base = file("akka-samples/akka-sample-fsm-scala"),
     dependencies = Seq(actor),
     settings = sampleSettings
   )
@@ -429,9 +429,16 @@ object AkkaBuild extends Build {
     settings = sampleSettings
   )
 
-  lazy val persistenceSample = Project(
-    id = "akka-sample-persistence",
-    base = file("akka-samples/akka-sample-persistence"),
+  lazy val persistenceSampleJava = Project(
+    id = "akka-sample-persistence-java",
+    base = file("akka-samples/akka-sample-persistence-java"),
+    dependencies = Seq(actor, persistence),
+    settings = sampleSettings
+  )
+
+  lazy val persistenceSampleScala = Project(
+    id = "akka-sample-persistence-scala",
+    base = file("akka-samples/akka-sample-persistence-scala"),
     dependencies = Seq(actor, persistence),
     settings = sampleSettings
   )
@@ -472,9 +479,9 @@ object AkkaBuild extends Build {
     )
   ) configs (MultiJvm)
   
-  lazy val multiNodeSample = Project(
-    id = "akka-sample-multi-node",
-    base = file("akka-samples/akka-sample-multi-node"),
+  lazy val multiNodeSampleScala = Project(
+    id = "akka-sample-multi-node-scala",
+    base = file("akka-samples/akka-sample-multi-node-scala"),
     dependencies = Seq(multiNodeTestkit % "test", testkit % "test"),
     settings = multiJvmSettings ++ sampleSettings ++ experimentalSettings ++ Seq(
       libraryDependencies ++= Dependencies.multiNodeSample,
@@ -701,10 +708,22 @@ object AkkaBuild extends Build {
     (if (useOnlyTestTags.isEmpty) Seq.empty else Seq("-n", if (multiNodeEnabled) useOnlyTestTags.mkString("\"", " ", "\"") else useOnlyTestTags.mkString(" ")))
   }
 
+  val (mavenLocalResolver, mavenLocalResolverSettings) =
+    System.getProperty("akka.build.M2Dir") match {
+      case null => (Resolver.mavenLocal, Seq.empty)
+      case path =>
+        // Maven resolver settings
+        val resolver = Resolver.file("user-publish-m2-local", new File(path))
+        (resolver, Seq(
+          otherResolvers := resolver:: publishTo.value.toList,
+          publishM2Configuration := Classpaths.publishConfig(packagedArtifacts.value, None, resolverName = resolver.name, checksums = checksums.in(publishM2).value, logging = ivyLoggingLevel.value)
+        ))
+    }
+
   lazy val resolverSettings = {
     // should we be allowed to use artifacts published to the local maven repository
     if(System.getProperty("akka.build.useLocalMavenResolver", "false").toBoolean)
-      Seq(resolvers += Resolver.mavenLocal)
+      Seq(resolvers += mavenLocalResolver)
     else Seq.empty
   } ++ {
     // should we be allowed to use artifacts from sonatype snapshots
@@ -773,16 +792,7 @@ object AkkaBuild extends Build {
 
     // don't save test output to a file
     testListeners in (Test, test) := Seq(TestLogger(streams.value.log, {_ => streams.value.log }, logBuffered.value))
-  ) ++ (System.getProperty("akka.build.M2Dir") match {
-    case null => Seq.empty
-    case path =>
-      // Maven resolver settings
-      Seq(
-        otherResolvers :=
-          Resolver.file("user-publish-m2-local", new File(path)) :: publishTo.value.toList,
-        publishM2Configuration := Classpaths.publishConfig(packagedArtifacts.value, None, resolverName = "user-publish-m2-local", checksums = checksums.in(publishM2).value, logging = ivyLoggingLevel.value)
-      )
-  })
+  ) ++ mavenLocalResolverSettings
 
   val validatePullRequest = TaskKey[Unit]("validate-pull-request", "Additional tasks for pull request validation")
 
