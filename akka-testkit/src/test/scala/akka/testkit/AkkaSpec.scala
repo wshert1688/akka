@@ -14,6 +14,7 @@ import scala.concurrent.Future
 import com.typesafe.config.{ Config, ConfigFactory }
 import akka.dispatch.Dispatchers
 import akka.testkit.TestEvent._
+import java.lang.management.ManagementFactory
 
 object AkkaSpec {
   val testConf: Config = ConfigFactory.parseString("""
@@ -67,7 +68,29 @@ abstract class AkkaSpec(_system: ActorSystem)
 
   override val invokeBeforeAllAndAfterAllEvenIfNoTestsAreExpected = true
 
+  private val processorId: Option[String] = {
+    val parts = ManagementFactory.getRuntimeMXBean().getName().split("@")
+    if (parts.size > 1) Some(parts(0))
+    else None
+  }
+
+  private def logOpenFiles(msg: String): Unit = {
+    processorId.foreach { id ⇒
+      val process = new ProcessBuilder("/bin/sh", "-c", s"lsof -p $id | wc -l").start()
+      val retCode = process.waitFor()
+      val lines = (scala.io.Source.fromInputStream(process.getInputStream)).getLines().to[Seq]
+      if (retCode == 0 && lines.nonEmpty) {
+        import scala.util.control.Exception._
+        (catching(classOf[NumberFormatException]) opt lines.head.trim.toInt).foreach(files ⇒
+          println(s"${system.name} $msg $files open files"))
+      } else {
+        (scala.io.Source.fromInputStream(process.getErrorStream)).getLines().foreach(l ⇒ println(s"${system.name} ERROR: $l"))
+      }
+    }
+  }
+
   final override def beforeAll {
+    logOpenFiles("starts with")
     startCoroner
     atStartup()
   }
@@ -76,6 +99,7 @@ abstract class AkkaSpec(_system: ActorSystem)
     beforeTermination()
     shutdown()
     afterTermination()
+    logOpenFiles("ends with")
     stopCoroner()
   }
 
