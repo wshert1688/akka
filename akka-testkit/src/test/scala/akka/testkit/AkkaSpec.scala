@@ -88,6 +88,7 @@ abstract class AkkaSpec(_system: ActorSystem)
       } else {
         (scala.io.Source.fromInputStream(process.getErrorStream)).getLines().foreach(l ⇒ println(s"${system.name} ERROR: $l"))
       }
+      process.destroy()
     }
   }
 
