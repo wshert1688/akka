@@ -78,7 +78,8 @@ abstract class AkkaSpec(_system: ActorSystem)
   private def logOpenFiles(msg: String): Unit = {
     processorId.foreach { id ⇒
       new File("./logs").mkdir()
-      val process = new ProcessBuilder("/bin/sh", "-c", s"lsof -p $id | tee ./logs/${id}.${system.name}.txt | wc -l").start()
+      val fName = msg.replace(' ', '_')
+      val process = new ProcessBuilder("/bin/sh", "-c", s"lsof -p $id | tee ./logs/${id}.${system.name}.$fName.txt | wc -l").start()
       val retCode = process.waitFor()
       val lines = (scala.io.Source.fromInputStream(process.getInputStream)).getLines().to[Seq]
       if (retCode == 0 && lines.nonEmpty) {
