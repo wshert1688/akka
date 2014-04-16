@@ -156,6 +156,18 @@ object AkkaBuild extends Build {
     )
   )
 
+  lazy val reportTest = Project(
+    id = "report-test",
+    base = file("report-test"),
+    settings = defaultSettings ++ scaladocSettings  ++ Seq(
+      publishArtifact in Compile := false,
+      libraryDependencies ++= Dependencies.reportTest,
+      // disable parallel tests
+      parallelExecution in Test := false,
+      reportBinaryIssues := () // disable bin comp check
+    )
+  )
+
   lazy val remote = Project(
     id = "akka-remote",
     base = file("akka-remote"),
@@ -239,7 +251,7 @@ object AkkaBuild extends Build {
       javaOptions in Test := defaultMultiJvmOptions,
       libraryDependencies ++= Dependencies.persistence,
       previousArtifact := akkaPreviousArtifact("akka-persistence-experimental")
-    )
+  )
   )
 
   lazy val zeroMQ = Project(
@@ -300,7 +312,7 @@ object AkkaBuild extends Build {
     dependencies = Seq(actor, camel),
     settings = sampleSettings ++ Seq(libraryDependencies ++= Dependencies.camelSample)
   )
-  
+
   lazy val camelSampleScala = Project(
     id = "akka-sample-camel-scala",
     base = file("akka-samples/akka-sample-camel-scala"),
@@ -342,7 +354,7 @@ object AkkaBuild extends Build {
     dependencies = Seq(actor, remote),
     settings = sampleSettings
   )
-  
+
   lazy val remoteSampleScala = Project(
     id = "akka-sample-remote-scala",
     base = file("akka-samples/akka-sample-remote-scala"),
@@ -381,7 +393,7 @@ object AkkaBuild extends Build {
       }
     )
   ) configs (MultiJvm)
-  
+
   lazy val clusterSampleScala = Project(
     id = "akka-sample-cluster-scala",
     base = file("akka-samples/akka-sample-cluster-scala"),
@@ -714,15 +726,22 @@ object AkkaBuild extends Build {
     },
 
     // show full stack traces and test case durations
-    testOptions in Test += Tests.Argument("-oDF"),
+    testOptions in Test += Tests.Argument(TestFrameworks.ScalaTest, "-oDF"),
 
-    // don't save test output to a file
-    testListeners in (Test, test) := Seq(TestLogger(streams.value.log, {_ => streams.value.log }, logBuffered.value)),
-    
+    testListeners in (Test, test) := Seq(
+      // don't save normal test output to a file
+      TestLogger(streams.value.log, {_ => streams.value.log }, logBuffered.value),
+      // generate junit xml reports
+      JUnitReporting.TestListener(target.value)
+    ),
+
+    // TODO:ban Remove this after testing
+    testListeners += JUnitReporting.TestListener(target.value),
+
     validatePullRequestTask,
     // add reportBinaryIssues to validatePullRequest on minor version maintenance branch
     validatePullRequest <<= validatePullRequest.dependsOn(reportBinaryIssues)
-    
+
   ) ++ mavenLocalResolverSettings
 
   val validatePullRequest = TaskKey[Unit]("validate-pull-request", "Additional tasks for pull request validation")
@@ -770,10 +789,10 @@ object AkkaBuild extends Build {
   )
 
   lazy val formatSettings = SbtScalariform.scalariformSettings ++ Seq(
-    ScalariformKeys.preferences in Compile  := formattingPreferences,
-    ScalariformKeys.preferences in Test     := formattingPreferences
+    ScalariformKeys.preferences in Compile := formattingPreferences,
+    ScalariformKeys.preferences in Test    := formattingPreferences
   )
-  
+
   lazy val docFormatSettings = SbtScalariform.scalariformSettings ++ Seq(
     ScalariformKeys.preferences in Compile  := docFormattingPreferences,
     ScalariformKeys.preferences in Test     := docFormattingPreferences,
@@ -787,7 +806,7 @@ object AkkaBuild extends Build {
     .setPreference(AlignParameters, true)
     .setPreference(AlignSingleLineCaseStatements, true)
   }
-  
+
   def docFormattingPreferences = {
     import scalariform.formatter.preferences._
     FormattingPreferences()
@@ -853,7 +872,7 @@ object AkkaBuild extends Build {
       autoAPIMappings := scaladocAutoAPI
     ))
   }
-  
+
   lazy val unidocScaladocSettings: Seq[sbt.Setting[_]]= {
     inTask(doc)(Seq(
       scalacOptions <++= (version, baseDirectory in akka) map scaladocOptions,
@@ -891,7 +910,7 @@ object AkkaBuild extends Build {
     else
       file
   }
-  
+
   lazy val mimaIgnoredProblems = {
      import com.typesafe.tools.mima.core._
      Seq(
@@ -945,7 +964,7 @@ object AkkaBuild extends Build {
       // dynamicImportPackage needed for loading classes defined in configuration
       OsgiKeys.dynamicImportPackage := Seq("*")
      ) 
-      
+
     val agent = exports(Seq("akka.agent.*"))
 
     val camel = exports(Seq("akka.camel.*"))
@@ -1001,9 +1020,9 @@ object Dependencies {
     val scalaStmVersion  = System.getProperty("akka.build.scalaStmVersion", "0.7")
     val scalaZeroMQVersion = System.getProperty("akka.build.scalaZeroMQVersion", "0.0.7")
     val genJavaDocVersion = System.getProperty("akka.build.genJavaDocVersion", "0.7")
-    val scalaTestVersion = System.getProperty("akka.build.scalaTestVersion", "2.0")
-    val scalaCheckVersion = System.getProperty("akka.build.scalaCheckVersion", "1.10.1")
-    val scalaContinuationsVersion = System.getProperty("akka.build.scalaContinuationsVersion", "1.0.0-RC3")
+    val scalaTestVersion = System.getProperty("akka.build.scalaTestVersion", "2.1.3")
+    val scalaCheckVersion = System.getProperty("akka.build.scalaCheckVersion", "1.11.3")
+    val scalaContinuationsVersion = System.getProperty("akka.build.scalaContinuationsVersion", "1.0.1")
   }
 
   object Compile {
@@ -1114,4 +1133,6 @@ object Dependencies {
   val contrib = Seq(Test.junitIntf, Test.commonsIo)
 
   val multiNodeSample = Seq(Test.scalatest)
+
+  val reportTest = Seq(Test.scalacheck, Test.scalatest)
 }
