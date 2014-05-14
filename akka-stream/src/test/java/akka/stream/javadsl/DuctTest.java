@@ -37,7 +37,7 @@ import akka.testkit.JavaTestKit;
 public class DuctTest {
 
   @ClassRule
-  public static AkkaJUnitActorSystemResource actorSystemResource = new AkkaJUnitActorSystemResource("StashJavaAPI",
+  public static AkkaJUnitActorSystemResource actorSystemResource = new AkkaJUnitActorSystemResource("DuctTest",
       AkkaSpec.testConf());
 
   final ActorSystem system = actorSystemResource.getSystem();
@@ -85,7 +85,7 @@ public class DuctTest {
     final JavaTestKit probe = new JavaTestKit(system);
     Pair<Consumer<String>, Producer<String>> inOutPair = Duct.create(String.class).build(materializer);
 
-    Flow.create(inOutPair.b()).foreach(new Procedure<String>() {
+    Flow.create(inOutPair.second()).foreach(new Procedure<String>() {
       public void apply(String elem) {
         probe.getRef().tell(elem, ActorRef.noSender());
       }
@@ -93,7 +93,7 @@ public class DuctTest {
     probe.expectNoMsg(FiniteDuration.create(200, TimeUnit.MILLISECONDS));
 
     Producer<String> producer = Flow.create(Arrays.asList("a", "b", "c")).toProducer(materializer);
-    producer.produceTo(inOutPair.a());
+    producer.produceTo(inOutPair.first());
     probe.expectMsgEquals("a");
     probe.expectMsgEquals("b");
     probe.expectMsgEquals("c");

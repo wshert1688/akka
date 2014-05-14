@@ -69,7 +69,7 @@ abstract class Duct[In, Out] {
    * the `Consumer` representing the input side of the `Duct` to an upstream
    * `Producer`) to initiate its execution.
    */
-  def foreach(c: Procedure[Out]): Duct[In, Unit]
+  def foreach(c: Procedure[Out]): Duct[In, Void]
 
   /**
    * Invoke the given function for every received element, giving it its previous
@@ -251,7 +251,8 @@ private[akka] class DuctAdapter[In, T](delegate: SDuct[In, T]) extends Duct[In, 
 
   override def collect[U](pf: PartialFunction[T, U]): Duct[In, U] = new DuctAdapter(delegate.collect(pf))
 
-  override def foreach(c: Procedure[T]): Duct[In, Unit] = new DuctAdapter(delegate.foreach(c.apply))
+  override def foreach(c: Procedure[T]): Duct[In, Void] =
+    new DuctAdapter(delegate.foreach(c.apply).map(_ ⇒ null)) // FIXME optimize to one step 
 
   override def fold[U](zero: U, f: Function2[U, T, U]): Duct[In, U] =
     new DuctAdapter(delegate.fold(zero) { case (a, b) ⇒ f.apply(a, b) })
@@ -267,23 +268,10 @@ private[akka] class DuctAdapter[In, T](delegate: SDuct[In, T]) extends Duct[In, 
     new DuctAdapter(delegate.mapConcat(elem ⇒ immutableSeq(f.apply(elem))))
 
   override def transform[U](transformer: Transformer[T, U]): Duct[In, U] =
-    new DuctAdapter(delegate.transform(new Transformer[T, U] {
-      override def onNext(in: T) = transformer.onNext(in)
-      override def isComplete = transformer.isComplete
-      override def onComplete() = transformer.onComplete()
-      override def onError(cause: Throwable) = transformer.onError(cause)
-      override def cleanup() = transformer.cleanup()
-    }))
+    new DuctAdapter(delegate.transform(transformer))
 
   override def transformRecover[U](transformer: RecoveryTransformer[T, U]): Duct[In, U] =
-    new DuctAdapter(delegate.transform(new RecoveryTransformer[T, U] {
-      override def onNext(in: T) = transformer.onNext(in)
-      override def isComplete = transformer.isComplete
-      override def onComplete() = transformer.onComplete()
-      override def onError(cause: Throwable) = transformer.onError(cause)
-      override def onErrorRecover(cause: Throwable) = transformer.onErrorRecover(cause)
-      override def cleanup() = transformer.cleanup()
-    }))
+    new DuctAdapter(delegate.transformRecover(transformer))
 
   override def groupBy[K](f: Function[T, K]): Duct[In, Pair[K, Producer[T]]] =
     new DuctAdapter(delegate.groupBy(f.apply).map { case (k, p) ⇒ Pair(k, p) }) // FIXME optimize to one step
